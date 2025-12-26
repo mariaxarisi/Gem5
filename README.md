@@ -104,3 +104,83 @@ $$
 - **L2 Cache:**  
   - Hits: 0
   - Misses: 475 (`system.cpu_cluster.l2.overall_misses::total`)
+
+### Question 3
+
+**In-order** processors execute instructions strictly in the sequential order defined by the compiled program, meaning the CPU must stall and wait if an instruction encounters a delay. In contrast, **out-of-order** processors can identify independent instructions and execute them ahead of stalled ones, reordering the workflow to hide latencies. The in-order processor models in gem5 are the following:
+
+#### **AtomicSimpleCPU**
+
+The **AtomicSimpleCPU** is the most basic model in gem5, designed primarily for extremely fast simulation speeds (e.g., for booting an operating system) rather than architectural accuracy. It uses **atomic memory accesses**, which means that memory requests are completed instantaneously in a single function call. The simulator calculates an approximate latency for the operation, but no simulation time actually passes during the access, and resource contention (such as a busy memory bus) is completely ignored.
+
+#### **TimingSimpleCPU**
+
+The **TimingSimpleCPU** is a non-pipelined model that serves as a middle ground, offering better accuracy than the atomic model by simulating the timing of memory interactions. It uses **timing memory accesses**, where memory requests are treated as realistic transactions that must travel through the cache hierarchy and interconnects. The CPU actually pauses execution until the memory system sends a response, and the simulator accurately models delays caused by resource contention, queues, and cache misses.
+
+#### **MinorCPU**
+
+The **MinorCPU** is a detailed, in-order processor model that is significantly more accurate than the SimpleCPU models because it simulates a fixed **4-stage pipeline** aad uses **timing memory accesses**. It accounts for pipeline hazards, bubbles, and data dependencies. The four stages of the pipeline function as follows:
+
+- **Fetch1**: Fetches lines of data from the instruction cache.
+- **Fetch2**: Breaks those lines into individual instructions and performs branch prediction.
+- **Decode**: Decodes the instructions into micro-operations and prepares them for execution.
+- **Execute**: Performs the arithmetic (ALU) operations, accesses memory (Load/Store), and commits the results to the architectural state.
+
+**a)** The program [sum-1-t-n.c](./sum-1-to-n/sum-1-to-n.c) was executed in gem5 in syscall emulation mode with the same system parameters, but using two different CPU models:  **TimingSimpleCPU** and **MinorCPU**.
+
+From the `stats.txt` files ([TimingSimpleCPU](./sum-1-to-n/TimingSimpleCPU/stats.txt), [MinorCPU](./sum-1-to-n/MinorCPU/stats.txt)) we obtain the following key simulation metrics:
+
+#### **TimingSimpleCPU**
+
+- `sim_insts` = 23,789
+- `sim_ticks` = 1,834,846,000
+- `sim_seconds` = 0.001835
+- `system.cpu.numCycles` = 3,669,692
+
+#### **MinorCPU**
+
+- `sim_insts` = 23,845
+- `sim_ticks` = 46,192,000
+- `sim_seconds` = 0.000046
+- `system.cpu.numCycles` = 92,384
+- `system.cpu.ipc` = 0.258107
+- `system.cpu.cpi` = 3.874355
+- `system.cpu.idleCycles` = 58,013
+
+We observe that, although the program executes approximately the same number of instructions on both models, the total simulation time (in ticks/seconds) is significantly smaller for MinorCPU compared to TimingSimpleCPU.
+
+**b)** The measurements in the `stats.txt` files confirm the theoretical differences between **TimingSimpleCPU** and **MinorCPU**.
+
+#### **Execution time / cycles / CPI**
+
+For **TimingSimpleCPU**:
+- `system.cpu.numCycles` = 3,669,692
+- `sim_ticks` ≈ 1.8 × 10^9.
+- `sim_insts` = 23,789
+- $ \text{CPI} = \frac{\text{numCycles}}{\text{sim\_insts}} = \frac{3,669,692}{23,789} \approx 154$
+
+For **MinorCPU**:
+- `system.cpu.numCycles` = 92,384
+- `sim_ticks` ≈ 4.6 × 10^7.
+- `system.cpu.cpi` = 3.874355
+
+Even though both models execute approximately the same number of instructions, MinorCPU completes the execution in **far fewer cycles and ticks**, which is consistent with the existence of a pipeline in MinorCPU. Moreover, the CPI (cycles per instruction) of TimingSimpleCPU is much higher, because even though both models use timing memory accesses—which force them to wait for memory operations to complete, as a real system does—MinorCPU can mitigate this disadvantage by overlapping work in the pipeline.
+
+#### **Idle cycles**
+
+For **TimingSimpleCPU**:
+- `system.cpu.num_idle_cycles` = 0.002000
+
+For **MinorCPU**:
+- `system.cpu.idleCycles` = 58013
+
+In TimingSimpleCPU, the core is modeled as a simple, non‑pipelined CPU that executes one instruction at a time and directly waits for each memory access to complete. These waits are counted as extra cycles and ticks, but they do not appear as idle time. In contrast, MinorCPU has an explicit 4‑stage pipeline, so stalls due to hazards, dependencies, bubbles, or branch behavior are visible as a large number of idle cycles, where parts of the pipeline are not doing useful work even though time is passing.
+
+#### **Pipeline statistics**
+
+For MinorCPU, additional statistics appear that do not exist for TimingSimpleCPU and are directly related to the detailed pipeline model:
+
+- `system.cpu.fetch2.*` (e.g., `fetch2.int_instructions`, `fetch2.load_instructions`, `fetch2.store_instructions`)
+  - statistics specific to the Fetch2 stage, confirming that the model has distinct pipeline stages.
+- `system.cpu.branchPred.*` counters (BTB hits, conditional (in)correct, indirect hits/misses, etc.)
+  - show the use of a branch prediction mechanism.
