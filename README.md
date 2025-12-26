@@ -128,7 +128,7 @@ The **MinorCPU** is a detailed, in-order processor model that is significantly m
 
 **a)** The program [sum-1-t-n.c](./sum-1-to-n/sum-1-to-n.c) was executed in gem5 in syscall emulation mode with the same system parameters, but using two different CPU models:  **TimingSimpleCPU** and **MinorCPU**.
 
-From the `stats.txt` files ([TimingSimpleCPU](./sum-1-to-n/TimingSimpleCPU/stats.txt), [MinorCPU](./sum-1-to-n/MinorCPU/stats.txt)) we obtain the following key simulation metrics:
+From the `stats.txt` files ([TimingSimpleCPU](./sum-1-to-n/TimingSimpleCPU/2GHz-DDR3_1600_8x8/stats.txt), [MinorCPU](./sum-1-to-n/MinorCPU/2GHz-DDR3_1600_8x8/stats.txt)) we obtain the following key simulation metrics:
 
 #### **TimingSimpleCPU**
 
