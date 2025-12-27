@@ -293,3 +293,67 @@ Keeping the CPU frequency at 2 GHz, we simulated the system with a DDR3_2133_8
   - **Observation:** With the faster memory, total cycles, CPI, and idle cycles all decrease slightly, while IPC increases slightly.
 
 **Explanation:** For MinorCPU at 2 GHz, moving from DDR3_1600_8x8 to DDR3_2133_8x8 shortens main‑memory latency, which reduces the time the in‑order pipeline spends stalled on memory. This appears in the stats as fewer total cycles, a lower CPI, fewer idle cycles, and a slightly higher IPC, along with a small reduction in simulated time. Compared to TimingSimpleCPU, MinorCPU can overlap some work in its pipeline, so it is a bit less directly exposed to memory latency; nevertheless, both models show that a faster DRAM technology yields a small but measurable improvement in performance.
+
+## Part 2 - Execute SPEC CPU2006 benchmarks in gem5
+
+For this exercise the following benchmarks were used from the **SPEC CPU2006** suite:
+
+- [401.bzip2](https://www.spec.org/cpu2006/Docs/401.bzip2.html)
+- [429.mcf](https://www.spec.org/cpu2006/Docs/429.mcf.html)
+- [456.hmmer](https://www.spec.org/cpu2006/Docs/456.hmmer.html)
+- [458.sjeng](https://www.spec.org/cpu2006/Docs/458.sjeng.html)
+- [470.lbm](https://www.spec.org/cpu2006/Docs/470.lbm.html)
+
+### Question 1
+
+All simulations for the five benchmarks were executed on the same simulated system. Using the configuration in [config.ini](./spec/specbzip/config.ini), we derived the following hardware parameters:
+
+#### **L1 Instruction Cache**
+
+- **Section**: `[system.cpu.icache]`
+- **Size (capacity)**: `size=32768` → **32 KB**
+- **Associativity**: `assoc=2` → **2‑way set associative**
+
+#### **L1 Data Cache**
+
+- **Section**: `[system.cpu.dcache]`
+- **Size (capacity)**: `size=65536` → **64 KB**
+- **Associativity**: `assoc=2` → **2‑way set associative**
+
+#### **L2 Cache**
+
+- **Section**: `[system.l2]`
+- **Size (capacity)**: `size=2097152` → **2 MB**
+- **Associativity**: `assoc=8` → **8‑way set associative**
+#### **Cache Line Size**
+
+- **Section**: `[system]`
+- **Cache line size**: `cache_line_size=64` → **64 bytes**
+
+#### **Main Memory Capacity**
+
+- **Section**: `[system]`
+- **Main memory capacity**: `mem_ranges=0:536870911` → **512 MB**
+
+### Question 2
+
+To compare the behaviour of the five SPEC benchmarks on this configuration, we collected the following metrics from the `stats.txt` files and plotted them:
+
+- **Committed instructions** (`system.cpu.committedInsts`): ![Committed instructions](./assets/benchmark-comparison/committed_insts.png)
+- **CPI** (`system.cpu.cpi`): ![CPI per benchmark](./assets/benchmark-comparison/cpi.png)
+- **L1 D‑cache overall miss rate** (`system.cpu.dcache.overall_miss_rate::total`): ![L1D miss rate](./assets/benchmark-comparison/l1d_miss_rate.png)
+- **L1 I‑cache overall miss rate** (`system.cpu.icache.overall_miss_rate::total`): ![L1I miss rate](./assets/benchmark-comparison/l1i_miss_rate.png)
+- **L2 cache overall miss rate** (`system.l2.overall_miss_rate::total`): ![L2 miss rate](./assets/benchmark-comparison/l2_miss_rate.png)
+- **Simulated time** (`sim_seconds`): ![Execution time](./assets/benchmark-comparison/sim_seconds.png)
+
+Because the simulations were run with the `-I 100000000` flag, all benchmarks were stopped after **100M committed instructions**. The equal bars in the first plot therefore confirm that every benchmark executed the same instruction budget; differences in performance come from how efficiently each benchmark uses the pipeline and memory system.
+
+- **401.bzip2 (specbzip)** – Bzip2 shows relatively low CPI and low L1D/L2 miss rates, so for the same 100M instructions it finishes quickly. Its compression loops have decent spatial locality, and the pipeline is rarely stalled, making it one of the most efficient integer workloads in this set.
+
+- **429.mcf (specmcf)** – MCF has a CPI similar to bzip2 but a noticeable L1I miss rate, reflecting a larger and more complex code footprint. However, its L1D and L2 miss rates remain low, so most data accesses are served from the caches and the overall execution time stays close to bzip2.
+
+- **456.hmmer (spechmmer)** – HMMER achieves the lowest CPI among all benchmarks together with very low miss rates at every cache level. Its dynamic‑programming style loops have excellent locality, so the CPU spends most cycles doing useful work and it is the fastest benchmark under the fixed 100M‑instruction limit.
+
+- **470.lbm (speclibm)** – LBM has a much higher CPI and medium L1D miss rate, while its L2 miss rate is close to 1.0. This indicates a streaming, bandwidth‑intensive workload that frequently goes to main memory; the long‑latency memory accesses combined with expensive floating‑point operations explain its significantly higher CPI and longer simulated time.
+
+- **458.sjeng (specsjeng)** – Sjeng exhibits the highest CPI and the worst L1D and L2 miss rates, while its I‑cache behaviour is good. As a chess engine with irregular data structures and deep, branch‑heavy search, it generates many cache misses and stalls even though instruction locality is good. Consequently, the pipeline is often waiting on data, and sjeng has by far the largest simulated time among the five benchmarks.
