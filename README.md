@@ -357,3 +357,31 @@ Because the simulations were run with the `-I 100000000` flag, all benchmarks we
 - **470.lbm (speclibm)** – LBM has a much higher CPI and medium L1D miss rate, while its L2 miss rate is close to 1.0. This indicates a streaming, bandwidth‑intensive workload that frequently goes to main memory; the long‑latency memory accesses combined with expensive floating‑point operations explain its significantly higher CPI and longer simulated time.
 
 - **458.sjeng (specsjeng)** – Sjeng exhibits the highest CPI and the worst L1D and L2 miss rates, while its I‑cache behaviour is good. As a chess engine with irregular data structures and deep, branch‑heavy search, it generates many cache misses and stalls even though instruction locality is good. Consequently, the pipeline is often waiting on data, and sjeng has by far the largest simulated time among the five benchmarks.
+
+### Question 3
+
+From the `stats.txt` files of the three runs (1 GHz, 2 GHz, 4 GHz) we observe the following values for the two clock domains:
+
+- `--cpu-clock=1GHz`
+  - [system.clk_domain.clock](./spec/cpu-clock-1GHz/specbzip/stats.txt#L289) = 1000 ps
+  - [system.cpu_clk_domain.clock](./spec/cpu-clock-1GHz/specbzip/stats.txt#L758) = 1000 ps
+
+- `--cpu-clock=2GHz`
+  - [system.clk_domain.clock](./spec/cpu-clock-2GHz/specbzip/stats.txt#L289) = 1000 ps
+  - [system.cpu_clk_domain.clock](./spec/cpu-clock-2GHz/specbzip/stats.txt#L758) = 500 ps
+
+- `--cpu-clock=4GHz`
+  - [system.clk_domain.clock](./spec/cpu-clock-4GHz/specbzip/stats.txt#L289) = 1000 ps
+  - [system.cpu_clk_domain.clock](./spec/cpu-clock-4GHz/specbzip/stats.txt#L758) = 250 ps
+
+We observe that the `--cpu-clock` flag only changes the **CPU clock domain** (`system.cpu_clk_domain.clock`) and leaves the **system clock domain** (`system.clk_domain.clock`) fixed at 1 GHz.
+
+In the corresponding `config.json` files, all CPU‑side components (the cores, the L1 instruction and data caches, the L2 cache, and the TLB walkers and their ports) are connected to `system.cpu_clk_domain`, while uncore components such as the main system bus (membus) are connected to `system.clk_domain`.
+
+This separation of clock domains is intentional and reflects a more realistic SoC‑style organization. By wiring the components this way, gem5 allows us to increase the CPU frequency (1 GHz → 2 GHz → 4 GHz) while keeping the rest of the system at 1 GHz, so we can study how a faster core behaves on top of an unmodified memory/uncore subsystem and observe that performance does not scale perfectly when the bottleneck moves to the 1 GHz interconnect and DRAM.
+
+If we were to add an extra core using the same configuration script, the new core would also be attached to system.cpu_clk_domain. This means it would automatically run at the same frequency as the existing core, so all cores in the CPU cluster share the same CPU clock domain, while the uncore components remain at the fixed 1 GHz system clock.
+
+![](./assets/perfect-scaling.png)
+
+By plotting the simulated time (`sim_seconds`) of each benchmark for 1 GHz, 2 GHz and 4 GHz, we see that there is **no perfect scaling** with the CPU frequency. Doubling or quadrupling `--cpu-clock` does not divide the execution time by 2 or 4. This behaviour is consistent with the clock‑domain organization described above: only the CPU complex speeds up, while the uncore and memory system remain at 1 GHz and the DRAM latencies are defined in absolute time. As the core runs faster, it issues memory requests more aggressively, but the 1 GHz interconnect and DRAM cannot respond proportionally faster, so a growing fraction of CPU cycles are spent stalled waiting for data. Consequently, the benchmarks become increasingly memory‑bound at higher CPU frequencies, and the measured `sim_seconds` improve sub‑linearly instead of showing ideal 1/f scaling.
