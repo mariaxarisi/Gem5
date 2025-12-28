@@ -9,8 +9,8 @@ GEM5_BIN="/home/arch/Desktop/gem5/build/ARM/gem5.opt"
 OUT_ROOT="${REPO_ROOT}/spec-performance-opt/speclibm"
 
 # Baseline configuration (MinorCPU, 1 GHz, 32KB/64KB L1, 2MB L2, 64B line)
-L1I_SIZE="32kB"
-L1I_ASSOC="2"
+BASE_L1I_SIZE="32kB"
+BASE_L1I_ASSOC="2"
 BASE_L1D_SIZE="64kB"
 BASE_L1D_ASSOC="2"
 BASE_L2_SIZE="2MB"
@@ -27,7 +27,7 @@ run_config() {
   local line_size="$5"
 
   # Code: {l1i_size}_{l1i_assoc}_{l1d_size}_{l1d_assoc}_{l2_size}_{l2_assoc}_{cache_line_size}
-  local code="${L1I_SIZE}_${L1I_ASSOC}_${l1d_size}_${l1d_assoc}_${l2_size}_${l2_assoc}_${line_size}"
+  local code="${BASE_L1I_SIZE}_${BASE_L1I_ASSOC}_${l1d_size}_${l1d_assoc}_${l2_size}_${l2_assoc}_${line_size}"
   local out_dir="${OUT_ROOT}/${code}"
 
   if [ -f "${out_dir}/stats.txt" ]; then
@@ -45,8 +45,8 @@ run_config() {
     --caches \
     --l2cache \
     --cpu-clock=1GHz \
-    --l1i_size="${L1I_SIZE}" \
-    --l1i_assoc="${L1I_ASSOC}" \
+    --l1i_size="${BASE_L1I_SIZE}" \
+    --l1i_assoc="${BASE_L1I_ASSOC}" \
     --l1d_size="${l1d_size}" \
     --l1d_assoc="${l1d_assoc}" \
     --l2_size="${l2_size}" \
