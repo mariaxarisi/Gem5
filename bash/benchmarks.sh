@@ -1,4 +1,4 @@
-./build/ARM/gem5.opt -d /home/arch/Desktop/Repo/spec/cpu-clock-1GHz/specbzip configs/example/se.py --cputype=MinorCPU --caches --l2cache --cpu-clock=1GHz -c spec_cpu2006/401.bzip2/src/specbzip -o "spec_cpu2006/401.bzip2/data/input.program 10" -I 100000000
+./build/ARM/gem5.opt -d /home/arch/Desktop/Repo/spec/cpu-clock-1GHz/specbzip configs/example/se.py --cpu-type=MinorCPU --caches --l2cache --cpu-clock=1GHz -c spec_cpu2006/401.bzip2/src/specbzip -o "spec_cpu2006/401.bzip2/data/input.program 10" -I 100000000
 
 ./build/ARM/gem5.opt -d /home/arch/Desktop/Repo/spec/cpu-clock-1GHz/specmcf configs/example/se.py --cpu-type=MinorCPU --caches --l2cache --cpu-clock=1GHz -c spec_cpu2006/429.mcf/src/specmcf -o "spec_cpu2006/429.mcf/data/inp.in" -I 100000000
 
