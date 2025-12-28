@@ -294,7 +294,7 @@ Keeping the CPU frequency at 2 GHz, we simulated the system with a DDR3_2133_8
 
 **Explanation:** For MinorCPU at 2 GHz, moving from DDR3_1600_8x8 to DDR3_2133_8x8 shortens main‑memory latency, which reduces the time the in‑order pipeline spends stalled on memory. This appears in the stats as fewer total cycles, a lower CPI, fewer idle cycles, and a slightly higher IPC, along with a small reduction in simulated time. Compared to TimingSimpleCPU, MinorCPU can overlap some work in its pipeline, so it is a bit less directly exposed to memory latency; nevertheless, both models show that a faster DRAM technology yields a small but measurable improvement in performance.
 
-## Part 2 - Execute SPEC CPU2006 benchmarks in gem5
+## Part 2
 
 For this exercise the following benchmarks were used from the **SPEC CPU2006** suite:
 
@@ -303,6 +303,8 @@ For this exercise the following benchmarks were used from the **SPEC CPU2006** s
 - [456.hmmer](https://www.spec.org/cpu2006/Docs/456.hmmer.html)
 - [458.sjeng](https://www.spec.org/cpu2006/Docs/458.sjeng.html)
 - [470.lbm](https://www.spec.org/cpu2006/Docs/470.lbm.html)
+
+## Step 1 - Execute SPEC CPU2006 benchmarks in gem5
 
 ### Question 1
 
@@ -380,8 +382,89 @@ In the corresponding `config.json` files, all CPU‑side components (the cores, 
 
 This separation of clock domains is intentional and reflects a more realistic SoC‑style organization. By wiring the components this way, gem5 allows us to increase the CPU frequency (1 GHz → 2 GHz → 4 GHz) while keeping the rest of the system at 1 GHz, so we can study how a faster core behaves on top of an unmodified memory/uncore subsystem and observe that performance does not scale perfectly when the bottleneck moves to the 1 GHz interconnect and DRAM.
 
-If we were to add an extra core using the same configuration script, the new core would also be attached to system.cpu_clk_domain. This means it would automatically run at the same frequency as the existing core, so all cores in the CPU cluster share the same CPU clock domain, while the uncore components remain at the fixed 1 GHz system clock.
+If we were to add an extra core using the same configuration script, the new core would also be attached to `system.cpu_clk_domain`. This means it would automatically run at the same frequency as the existing core, so all cores in the CPU cluster share the same CPU clock domain, while the uncore components remain at the fixed 1 GHz system clock.
 
 ![](./assets/perfect-scaling.png)
 
 By plotting the simulated time (`sim_seconds`) of each benchmark for 1 GHz, 2 GHz and 4 GHz, we see that there is **no perfect scaling** with the CPU frequency. Doubling or quadrupling `--cpu-clock` does not divide the execution time by 2 or 4. This behaviour is consistent with the clock‑domain organization described above: only the CPU complex speeds up, while the uncore and memory system remain at 1 GHz and the DRAM latencies are defined in absolute time. As the core runs faster, it issues memory requests more aggressively, but the 1 GHz interconnect and DRAM cannot respond proportionally faster, so a growing fraction of CPU cycles are spent stalled waiting for data. Consequently, the benchmarks become increasingly memory‑bound at higher CPU frequencies, and the measured `sim_seconds` improve sub‑linearly instead of showing ideal 1/f scaling.
+
+### Question 4
+
+For this experiment we reran the `458.sjeng` benchmark in gem5 with the same 2 GHz CPU clock, but changed the memory from `DDR3_1600_8x8` to a faster `DDR3_2133_8x8` configuration. This specific benchmark was selected because it had an `l2.overall_miss_rate` equal to 1, meaning it frequently accesses main memory to retrieve data.
+
+- For `DDR3_1600_8x8`:
+  - [sim_seconds](./spec/cpu-clock-2GHz/specsjeng/stats.txt#L12) = 0.513528
+  - [system.cpu.cpi](./spec/cpu-clock-2GHz/specsjeng/stats.txt#L29) = 10.270554
+  - [system.cpu.numCycles](./spec/cpu-clock-2GHz/specsjeng/stats.txt#L155) = 1,027,055,373
+  - [system.cpu.idleCycles](./spec/cpu-clock-2GHz/specsjeng/stats.txt#L95) = 805,850,271
+
+- For `DDR3_2133_8x8`:
+  - [sim_seconds](./spec/mem-type-DDR3_2133_8x8/specsjeng/stats.txt#L12) = 0.493128
+  - [system.cpu.cpi](./spec/mem-type-DDR3_2133_8x8/specsjeng/stats.txt#L29) = 9.862562
+  - [system.cpu.numCycles](./spec/mem-type-DDR3_2133_8x8/specsjeng/stats.txt#L155) = 986,256,235
+  - [system.cpu.idleCycles](./spec/mem-type-DDR3_2133_8x8/specsjeng/stats.txt#L95) = 765,051,001
+
+As we can observe, there is a small improvement in performance: with the faster memory, the program finishes 3–4% faster and requires fewer cycles to execute the same 100 million instructions. Moreover, the number of idle cycles is also reduced, since DRAM responds more quickly and the CPU spends less time waiting. However, the overall improvement is not significant because the bus connecting the CPU to the DRAM operates at 1 GHz, which becomes the bottleneck in this case.
+
+## Step 2 - Design Exploration and Performance Optimization
+
+### Question 1
+
+The total space of possible cache configurations was extremely large. To make the exploration tractable and meaningful, we applied the following general constraints, based on both architectural best practices and the results from the first step of the assignment:
+
+- **L1 Cache Size Constraint**: The sum of L1 instruction and data cache sizes was limited to ≤ 256 kB.
+- **L2 Cache Size Constraint**: L2 cache size was limited to ≤ 4 MB.
+- **Associativity Limits**: L1 associativity was not set higher than 4, and L2 associativity was not set higher than 16, since higher associativity increases access latency and complexity.
+- **Power-of-Two Values:** All cache sizes and associativities were chosen as powers of two, which is standard in hardware design for efficient indexing and implementation.
+- **Base Configuration**: The baseline configuration was 32kB/2-way L1I, 64kB/2-way L1D, 2MB/8-way L2, and 64B line size. For each experiment, we varied only one parameter at a time from this baseline, keeping all others fixed, to isolate the effect of each parameter.
+
+#### **specsjeng & speclibm**
+
+These two benchmarks exhibited the worst performance (highest CPI) in the base case. Both had a noticeable L1D overall miss rate (0.12 for sjeng, 0.06 for libm) and an extremely high L2 overall miss rate (equal to 1), while their L1I miss rates were very low. Based on these result, we tested the following values for each parameter:
+
+- **L1I size and associativity were not varied**, as instruction cache was not a bottleneck.
+- **L1D size**: 16, 32, 64, 128 kB
+- **L1D associativity**: 1, 2, 4
+- **L2 size**: 1, 2, 4 MB
+- **L2 associativity**: 4, 8, 16 
+- **Cache line size**:
+  - **specsjeng**: Since sjeng works with tree structures and pointers, it is less likely to benefit from spatial locality. Therefore, we tested smaller cache line sizes than the baseline: 16, 32, 64 B.
+  - **speclibm**: libm operates on a 3D grid and may benefit from spatial locality. Thus, we tested larger cache line sizes: 32, 64, 128 B.
+
+#### **specbzip**
+
+At the base configuration, specbzip exhibited a negligible L1I miss rate, a small L1D miss rate (0.017), and a moderate L2 miss rate (0.3). Based on these results:
+
+- We skipped checking associativities (both L1 and L2), as the benchmark was not particularly prone to conflict misses.
+- We focused on L1D size, L2 size, and cache line size to determine whether performance could benefit from a larger cache, or if a smaller cache would suffice.
+
+The values tested were:
+
+- **L1D size**: 16, 32, 64, 128 kB
+- **L2 size**: 1, 2, 4 MB
+- **Cache line size**: 32, 64 B
+
+#### **specmcf**
+
+For the base configuration, specmcf exhibited very low L1D and L2 miss rates, but had an unexpectedly higher L1I miss rate (0.025) compared to the other benchmarks. Based on this observation:
+
+- We kept the **L1D size and associativity**, **L2 size and associativity**, and **cache line size** fixed at their baseline values, since data and L2 caches were not bottlenecks.
+- We focused our exploration on **L1I cache parameters** to investigate whether increasing the instruction cache size or associativity could reduce the L1I miss rate and improve performance.
+
+The values tested were:
+
+- **L1I size**: 16, 32, 64, 128 kB
+- **L1I associativity**: 1, 2, 4
+
+#### **spechmmer**
+
+spechmmer demonstrated excellent overall performance at the base configuration, with low miss rates across the entire cache hierarchy and a CPI close to the ideal value of 1 cycle per instruction. Given this strong baseline performance:
+
+- We did not explore **associativity** or **cache line size**, as there was no indication of conflict or spatial locality issues.
+- We focused on testing whether spechmmer could maintain its high performance with **smaller L1 and L2 cache sizes**, potentially reducing cost and power without sacrificing efficiency.
+
+The values tested were:
+
+- **L1I size**: 16, 32 kB
+- **L1D size**: 16, 32, 64 kB
+- **L2 size**: 1, 2 MB
