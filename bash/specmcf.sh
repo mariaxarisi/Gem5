@@ -69,3 +69,5 @@ L1I_ASSOCS=("1" "2" "4")
 for l1i_assoc in "${L1I_ASSOCS[@]}"; do
   run_config "${BASE_L1I_SIZE}" "${l1i_assoc}"
 done
+
+run_config "64kB" "4"

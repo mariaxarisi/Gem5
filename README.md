@@ -671,20 +671,21 @@ We now apply this to the benchmarks to find the optimal configuration that balan
 
 **2. specsjeng**
 * **Performance:** L2 size up to 4MB improved CPI. Line size 128B improved CPI significantly.
-* **Trade-off:**
+* **Optimization:**
     * **Option A:** L1=Base, L2=Base, Line=128B.
       * **Cost:** $10(32+64) + 2000 + 50(2+2+8) = 960 + 2000 + 600 = \mathbf{3560}$
       * **Score:** $1 / (4.974674*3560) = 0.00005646578$
     * **Option B:** L1=Base, L2_size = 4MB, L2_assoc=Base, Line=128B.
       * **Cost:** $10(32+64) + 4000 + 50(2+2+8) = 960 + 4000 + 600 = \mathbf{5560}$
-      * **Score:** $1 / (*5560) = $
+      * **Score:** $1 / (4.972560*5560) = 0.00003616972$
 * **Conclusion:** The move to 128B lines provides a massive CPI drop (from 7.5 to 5.0) for zero cost. The move to 4MB L2 provides a smaller gain. The **Option A** is the most cost-effective. The Option B is likely too expensive for the marginal gain unless absolute peak performance is required regardless of cost.
 
 **3. specmcf**
-* **Performance finding:** L1I size 32kB $\to$ 64kB (or Assoc $\to$ 4) reduced CPI massively.
-* **Trade-off:**
-    * *Cost of +32KB L1I:* $32 \times 10 = 320$ cost units.
-    * *Cost of Assoc 2 $\to$ 4:* $50 \times 1 = 50$ cost units (assuming only L1I changed).
+* **Performance:** L1I size 64kB and L1I associativity 4 reduced CPI significantly.
+* **Optimization:**
+    * **Optimal Performance Config:** L1I_size=64kB, L1I_assoc=4, L1D=Base, L2=Base, Line=Base.
+    * **Cost:** $10(64+64) + 2000 + 50(4+2+8) = 1280 + 2000 + 700 = \mathbf{3980}$
+    * **Score:** $1 / (*3980) = $
     * *Analysis:* Increasing associativity is cheaper ($50$ units) than doubling the cache size ($320$ units) and achieved nearly the same miss rate reduction (0.000018 vs 0.000019).
     * *Verdict:* **Keep L1I at 32KB but increase Associativity to 4.** This is the "smart" architectural choice—fixing conflict misses with logic (associativity) rather than brute force (size).
 
