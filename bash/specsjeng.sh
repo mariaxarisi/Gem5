@@ -90,3 +90,5 @@ LINE_SIZES=("16" "32" "64" "128")
 for line_size in "${LINE_SIZES[@]}"; do
   run_config "${BASE_L1D_SIZE}" "${BASE_L1D_ASSOC}" "${BASE_L2_SIZE}" "${BASE_L2_ASSOC}" "${line_size}"
 done
+
+run_config "${BASE_L1D_SIZE}" "${BASE_L1D_ASSOC}" "4MB" "${BASE_L2_ASSOC}" "128"

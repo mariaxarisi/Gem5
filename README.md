@@ -621,3 +621,80 @@ Varying the L1 instruction cache size resulted in changes to the CPI that were o
 ![L2 Size Impact on CPI (spechmmer)](./assets/spechmmer/cpi_vs_l2_size.png)
 
 Similar to the instruction cache, changing the L2 cache size had no impact on the performance of `spechmmer`. The working set of this benchmark is evidently small enough to be served efficiently by the baseline cache configuration.
+
+### Step 3 - Cost Function and Cost/Performance Optimization
+
+To evaluate the trade-offs between performance and hardware complexity, we must define a cost function that estimates the "price" of our design choices. Based on digital circuit design principles and literature [1], the primary cost drivers are:
+
+1.  **Cache Capacity (Size):** The cost is roughly proportional to the number of SRAM bits. However, **L1 cache is significantly more expensive per bit than L2**.
+    * *Justification:* L1 caches must be extremely fast (low latency) and are often multi-ported to support the pipeline, requiring larger, more complex 6T-SRAM cells compared to the slower SRAM used in L2.
+2.  **Associativity:** Higher associativity increases complexity non-linearly.
+    * *Justification:* It requires more comparators (tag matching) and wider multiplexers. It also increases power consumption due to parallel tag lookups.
+3.  **Cache Line Size:**
+    * *Justification:* Larger lines require wider internal buses and buffers, but they reduce the total number of tag bits required for a given cache size (since there are fewer lines). The cost impact of cache line size is generally small.
+
+Based on these factors, we propose the following Cost Function:
+
+$$Cost = w_{L1} \cdot (Size_{L1I} + Siz_{L1D}) + w_{L2} \cdot Size_{L2} + w_{assoc} \cdot (Assoc_{L1I} + Assoc_{L1D}) + w_{assoc} \cdot Assoc_{L2}$$
+
+Where we assign arbitrary cost units as follows:
+
+* **$Size_{L1}$**: Size in KB.
+* **$Size_{L2}$**: Size in KB.
+* **$Assoc$**: The associativity way-count (e.g., 2, 4, 8).
+* **Weights ($w$):**
+    * $w_{L1} = 10$: Reflects the cost of the fasterd L1 SRAM.
+    * $w_{L2} = 1$: Reflects the cost of the slower L2 SRAM.
+    * $w_{assoc} = 50$: A high penalty to discourage high associativity unless absolutely necessary (modeling the complexity of comparators and MUXes).
+
+**The Final Formula:**
+
+$$Cost =10 \cdot (Size_{L1I} + Siz_{L1D}) + 1 \cdot Size_{L2} + 50 \cdot (Assoc_{L1I} + Assoc_{L1D}) + 50 \cdot Assoc_{L2}$$
+
+*(Note: We omit cache line size from the basic cost formula as its impact is secondary compared to the SRAM size and associativity, though it affects the bandwidth requirements).*
+
+We define the optimization metric **Score**, calculated as:
+
+$$Score = \frac{IPC}{Cost} = \frac{1}{CPI \times Cost}$$
+
+We now apply this to the benchmarks to find the optimal configuration that balances speed and hardware cost.
+
+---
+
+**1. speclibm**
+* **Performance:** Increasing L1D size/associativity did nothing. Increasing L2 size *hurt* performance. Increasing Line Size to 128B helped.
+* **Optimization:**
+    * **Optimal Performance Config:** L1=Base, L2=Base, Line=128B.
+    * **Cost:** $10(32+64) + 2000 + 50(2+2+8) = 960 + 2000 + 600 = \mathbf{3560}$
+    * **Score:** $1 / (1.990451*3560) = 0.00014112323$
+* **Conclusion:** Since larger caches provided no benefit (or negative benefit), the **Baseline configuration (with 128B lines)** is the winner. There is no need to pay for extra SRAM that yields no CPI drop.
+
+**2. specsjeng**
+* **Performance:** L2 size up to 4MB improved CPI. Line size 128B improved CPI significantly.
+* **Trade-off:**
+    * **Option A:** L1=Base, L2=Base, Line=128B.
+      * **Cost:** $10(32+64) + 2000 + 50(2+2+8) = 960 + 2000 + 600 = \mathbf{3560}$
+      * **Score:** $1 / (4.974674*3560) = 0.00005646578$
+    * **Option B:** L1=Base, L2_size = 4MB, L2_assoc=Base, Line=128B.
+      * **Cost:** $10(32+64) + 4000 + 50(2+2+8) = 960 + 4000 + 600 = \mathbf{5560}$
+      * **Score:** $1 / (*5560) = $
+* **Conclusion:** The move to 128B lines provides a massive CPI drop (from 7.5 to 5.0) for zero cost. The move to 4MB L2 provides a smaller gain. The **Option A** is the most cost-effective. The Option B is likely too expensive for the marginal gain unless absolute peak performance is required regardless of cost.
+
+**3. specmcf**
+* **Performance finding:** L1I size 32kB $\to$ 64kB (or Assoc $\to$ 4) reduced CPI massively.
+* **Trade-off:**
+    * *Cost of +32KB L1I:* $32 \times 10 = 320$ cost units.
+    * *Cost of Assoc 2 $\to$ 4:* $50 \times 1 = 50$ cost units (assuming only L1I changed).
+    * *Analysis:* Increasing associativity is cheaper ($50$ units) than doubling the cache size ($320$ units) and achieved nearly the same miss rate reduction (0.000018 vs 0.000019).
+    * *Verdict:* **Keep L1I at 32KB but increase Associativity to 4.** This is the "smart" architectural choice—fixing conflict misses with logic (associativity) rather than brute force (size).
+
+**4. specbzip2 & spechmmer**
+* **Performance finding:** `specbzip2` scaled with size but is already fast. `spechmmer` saw negligible gains from doubling L1.
+* **Verdict:**
+    * **spechmmer:** Keep **Baseline**. The cost of doubling L1 ($+640$ units) for a $0.003$ CPI improvement is a terrible return on investment.
+    * **specbzip2:** Keep **Baseline**. While CPI improved with L2 size, the benchmark is already efficient. Doubling L2 adds 2048 cost units for a modest gain.
+
+---
+
+### References
+[1] Hennessy, J. L., & Patterson, D. A. *Computer Architecture: A Quantitative Approach*.
