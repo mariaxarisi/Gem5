@@ -72,7 +72,7 @@ for l2_size in "${L2_SIZES[@]}"; do
 done
 
 # 3) Sweep line size: 32, 64 B 
-LINE_SIZES=("32" "64")
+LINE_SIZES=("32" "64" "128")
 for line_size in "${LINE_SIZES[@]}"; do
   run_config "${BASE_L1D_SIZE}" "${BASE_L2_SIZE}" "${line_size}"
 done
