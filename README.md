@@ -488,4 +488,76 @@ The values tested were:
 - **L1D size**: 16, 32, 64, 128 kB
 - **L2 size**: 1, 2, 4 MB
 
-### Question 3
+### Question 2
+
+In this section, we present the results of our design exploration to optimize system performance. For each benchmark, we have generated graphs illustrating the impact of the tested cache parameters on the CPI. Below, we provide a detailed analysis of these results for each benchmark, explaining the observed behaviors and commenting on instances where increasing cache resources yielded diminishing returns or even degraded performance.
+
+#### **speclibm**
+
+`speclibm` is a bandwidth-intensive benchmark characterized by a high CPI and an extremely high L2 miss rate in the baseline configuration. We explored the impact of L1D size, L1D associativity, L2 size, L2 associativity, and cache line size on its performance.
+
+**L1 Data Cache Size:**
+
+![L1D Size Impact on CPI (speclibm)](./assets/speclibm/cpi_vs_l1d_size.png)
+
+As observed in the plot, varying the L1 data cache size had no impact on the benchmark's CPI. Although a smaller L1D size could potentially reduce hit time, it did not translate into a performance improvement for this specific workload. This suggests that the baseline 64kB size is already sufficient for the L1 working set, and further increases or decreases in L1 data cache size do not provide benefits.
+
+**L1 Data Cache Associativity:**
+
+![L1D Associativity Impact on CPI (speclibm)](./assets/speclibm/cpi_vs_l1d_assoc.png)
+
+Increasing the associativity to 4 from the baseline of 2 had no noticeable impact on CPI. However, reducing the associativity to 1 (a direct-mapped cache) led to an increase in CPI. While direct-mapped caches can offer lower hit time in memory accesses, they are more prone to conflict misses. In this case, the increase in conflict misses outweighed any benefit from reduced hit latency, negatively impacting performance.
+
+**L2 Cache Size:**
+
+![L2 Size Impact on CPI (speclibm)](./assets/speclibm/cpi_vs_l2_size.png)
+
+Surprisingly, increasing the L2 cache size resulted in a higher CPI. We initially hypothesized that a larger L2 cache might reduce the extremely high baseline L2 miss rate (near 1.0). However, the results indicate that the working set of `speclibm` is likely too large to fit even in a 4MB L2 cache. Consequently, the larger cache did not solve the miss rate problem but instead increased the L2 hit latency, leading to a higher overall CPI.
+
+**L2 Cache Associativity:**
+
+![L2 Associativity Impact on CPI (speclibm)](./assets/speclibm/cpi_vs_l2_assoc.png)
+
+Varying the L2 cache associativity had no impact on the benchmark's CPI, confirming that conflict misses in the L2 cache are not the primary bottleneck for this workload.
+
+**Cache Line Size:**
+
+![Cache Line Size Impact on CPI (speclibm)](./assets/speclibm/cpi_vs_line_size.png)
+
+Cache line size significantly influenced performance. As anticipated for a benchmark that operates on large arrays and grids, `speclibm` benefits from spatial locality. Increasing the cache line size allows more data to be fetched on each miss, potentially satisfying future references. Analysis of the `stats.txt` files confirms that larger cache line sizes decreased the overall miss rates in both the L1D and L2 caches. The plot shows that a smaller 32B line size degrades performance, while increasing it from the 64B baseline to 128B provides a modest improvement in CPI.
+
+#### **specsjeng**
+
+`specsjeng` is an integer benchmark (a chess engine) that uses complex data structures involving trees and pointer chasing. In the baseline configuration, it exhibited the highest CPI and poor miss rates in both L1D and L2 caches. We explored the same parameters as in `speclibm`, to see how they impact `specsjeng`'s performance.
+
+**L1 Data Cache Size:**
+
+![L1D Size Impact on CPI (specsjeng)](./assets/specsjeng/cpi_vs_l1d_size.png)
+
+The plot indicates that increasing the L1 data cache size led to improvements in CPI. However, it is important to note the scale of the y-axis; the differences between the tested sizes are extremely small (in the magnitude of $10^{-5}$). While larger sizes are technically better, the baseline 64kB is effectively sufficient, and further increases yield negligible real-world performance gains for this workload.
+
+**L1 Data Cache Associativity:**
+
+![L1D Associativity Impact on CPI (specsjeng)](./assets/specsjeng/cpi_vs_l1d_assoc.png)
+
+The results for L1D associativity mirror those of `speclibm`. Increasing associativity from the baseline of 2 to 4 showed no impact on CPI. Conversely, reducing the cache to direct-mapped (associativity of 1) significantly degraded performance. This confirms that `specsjeng` is susceptible to conflict misses in the L1 data cache, and at least 2-way associativity is necessary to mitigate them.
+
+**L2 Cache Size:**
+
+![L2 Size Impact on CPI (specsjeng)](./assets/specsjeng/cpi_vs_l2_size.png)
+
+In contrast to `speclibm`, increasing the L2 cache size up to 4MB improved the performance of `specsjeng`, resulting in a lower CPI. We observed from the statistics that the overall L2 miss *rate* did not change with the size increase. However, the clear reduction in CPI indicates that the larger cache was nevertheless effective. It likely captured a larger portion of the working set, reducing the *total count* of expensive main memory accesses, even if the ratio of misses to total L2 accesses remained high.
+
+**L2 Cache Associativity:**
+
+![L2 Associativity Impact on CPI (specsjeng)](./assets/specsjeng/cpi_vs_l2_assoc.png)
+
+Increasing L2 associativity resulted in a very slight increase in CPI. These changes are negligible (affecting only the fourth decimal place of the CPI), suggesting that the slight increase in access latency caused by higher associativity outweighed any benefit from reduced conflict misses.
+
+**Cache Line Size:**
+
+![Cache Line Size Impact on CPI (specsjeng)](./assets/specsjeng/cpi_vs_line_size.png)
+
+This parameter yielded the most significant and surprising results for this benchmark. We initially hypothesized that `specsjeng` would not benefit from larger cache lines due to its reliance on tree data structures, which typically exhibit poor spatial locality. This hypothesis was proven wrong by the data.
+
+Moving from the baseline 64B line size to 128B dramatically decreased the CPI from approximately 7.5 down to near 5. Analysis of the `stats.txt` files confirmed a significant decrease in the L1 D-cache miss rate with larger lines. This suggests that despite the pointer-based nature of the workload, the tree nodes are likely allocated contiguously in memory, allowing the larger lines to successfully prefetch related data.

@@ -16,9 +16,9 @@ base_l2_size = "2MB"
 base_l2_assoc = "8"
 base_line_size = "64"
 
-l1i_sizes = ["16kB", "32kB"]
-l1d_sizes = ["16kB", "32kB", "64kB"]
-l2_sizes = ["1MB", "2MB"]
+l1i_sizes = ["16kB", "32kB", "64kB"]
+l1d_sizes = ["16kB", "32kB", "64kB", "128kB"]
+l2_sizes = ["1MB", "2MB", "4MB"]
 
 def get_cpi_from_stats(stats_path):
     if not os.path.isfile(stats_path):
