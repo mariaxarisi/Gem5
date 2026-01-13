@@ -59,20 +59,20 @@ run_config() {
   rm -f "${out_dir}/config.dot"* 2>/dev/null || true
 }
 
-# 1) Sweep L1I size: 16, 32 kB
-L1I_SIZES=("16kB" "32kB")
+# 1) Sweep L1I size: 16, 32, 64 kB
+L1I_SIZES=("16kB" "32kB" "64kB")
 for l1i_size in "${L1I_SIZES[@]}"; do
   run_config "${l1i_size}" "${BASE_L1D_SIZE}" "${BASE_L2_SIZE}"
 done
 
-# 2) Sweep L1D size: 16, 32, 64 kB 
-L1D_SIZES=("16kB" "32kB" "64kB")
+# 2) Sweep L1D size: 16, 32, 64, 128 kB
+L1D_SIZES=("16kB" "32kB" "64kB" "128kB")
 for l1d_size in "${L1D_SIZES[@]}"; do
   run_config "${BASE_L1I_SIZE}" "${l1d_size}" "${BASE_L2_SIZE}"
 done
 
-# 3) Sweep L2 size: 1, 2 MB 
-L2_SIZES=("1MB" "2MB")
+# 3) Sweep L2 size: 1, 2, 4 MB
+L2_SIZES=("1MB" "2MB" "4MB")
 for l2_size in "${L2_SIZES[@]}"; do
   run_config "${BASE_L1I_SIZE}" "${BASE_L1D_SIZE}" "${l2_size}"
 done

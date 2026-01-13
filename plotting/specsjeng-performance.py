@@ -20,7 +20,7 @@ l1d_sizes = ["16kB", "32kB", "64kB", "128kB"]
 l1d_assocs = ["1", "2", "4"]
 l2_sizes = ["1MB", "2MB", "4MB"]
 l2_assocs = ["4", "8", "16"]
-line_sizes = ["16", "32", "64"]
+line_sizes = ["16", "32", "64", "128"]
 
 def get_cpi_from_stats(stats_path):
     if not os.path.isfile(stats_path):

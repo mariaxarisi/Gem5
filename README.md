@@ -447,7 +447,7 @@ These two benchmarks exhibited the worst performance (highest CPI) in the base c
 - **L2 size**: 1, 2, 4 MB
 - **L2 associativity**: 4, 8, 16 
 - **Cache line size**:
-  - **specsjeng**: Since sjeng works with tree structures and pointers, it is less likely to benefit from spatial locality. Therefore, we tested smaller cache line sizes than the baseline: 16, 32, 64 B.
+  - **specsjeng**: Since sjeng works with tree structures and pointers, it is less likely to benefit from spatial locality. Therefore, we tested smaller cache line sizes than the baseline: 16, 32, 64, 128 B.
   - **speclibm**: libm operates on a 3D grid and may benefit from spatial locality. Thus, we tested larger cache line sizes: 32, 64, 128 B.
 
 #### **specbzip**
@@ -461,7 +461,7 @@ The values tested were:
 
 - **L1D size**: 16, 32, 64, 128 kB
 - **L2 size**: 1, 2, 4 MB
-- **Cache line size**: 32, 64 B
+- **Cache line size**: 32, 64, 128 B
 
 #### **specmcf**
 
@@ -484,8 +484,8 @@ spechmmer demonstrated excellent overall performance at the base configuration, 
 
 The values tested were:
 
-- **L1I size**: 16, 32 kB
-- **L1D size**: 16, 32, 64 kB
-- **L2 size**: 1, 2 MB
+- **L1I size**: 16, 32, 64 kB
+- **L1D size**: 16, 32, 64, 128 kB
+- **L2 size**: 1, 2, 4 MB
 
 ### Question 3

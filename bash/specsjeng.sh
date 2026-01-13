@@ -85,7 +85,7 @@ for l2_assoc in "${L2_ASSOCS[@]}"; do
   run_config "${BASE_L1D_SIZE}" "${BASE_L1D_ASSOC}" "${BASE_L2_SIZE}" "${l2_assoc}" "${BASE_LINE_SIZE}"
 done
 
-# 5) Sweep line size: 16, 32, 64 B 
+# 5) Sweep line size: 16, 32, 64, 128 B
 LINE_SIZES=("16" "32" "64" "128")
 for line_size in "${LINE_SIZES[@]}"; do
   run_config "${BASE_L1D_SIZE}" "${BASE_L1D_ASSOC}" "${BASE_L2_SIZE}" "${BASE_L2_ASSOC}" "${line_size}"
