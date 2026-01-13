@@ -490,11 +490,11 @@ The values tested were:
 
 ### Question 2
 
-In this section, we present the results of our design exploration to optimize system performance. For each benchmark, we have generated graphs illustrating the impact of the tested cache parameters on the CPI. Below, we provide a detailed analysis of these results for each benchmark, explaining the observed behaviors and commenting on instances where increasing cache resources yielded diminishing returns or even degraded performance.
+In this section, we present the results of our design exploration to optimize system performance. For each benchmark, we have generated graphs illustrating the impact of the tested parameters on the CPI. Below, we provide a analysis of these results for each benchmark, explaining the observed behaviors and commenting on instances where increasing cache resources yielded diminishing returns or even degraded performance.
 
 #### **speclibm**
 
-`speclibm` is a bandwidth-intensive benchmark characterized by a high CPI and an extremely high L2 miss rate in the baseline configuration. We explored the impact of L1D size, L1D associativity, L2 size, L2 associativity, and cache line size on its performance.
+`speclibm` is a floating-point benchmark related to Computational Fluid Dynamics (CFD) simulations, characterized by a high CPI and an extremely high L2 miss rate in the baseline configuration. We explored the impact of L1D size, L1D associativity, L2 size, L2 associativity, and cache line size on its performance.
 
 **L1 Data Cache Size:**
 
@@ -512,7 +512,7 @@ Increasing the associativity to 4 from the baseline of 2 had no noticeable impac
 
 ![L2 Size Impact on CPI (speclibm)](./assets/speclibm/cpi_vs_l2_size.png)
 
-Surprisingly, increasing the L2 cache size resulted in a higher CPI. We initially hypothesized that a larger L2 cache might reduce the extremely high baseline L2 miss rate (near 1.0). However, the results indicate that the working set of `speclibm` is likely too large to fit even in a 4MB L2 cache. Consequently, the larger cache did not solve the miss rate problem but instead increased the L2 hit latency, leading to a higher overall CPI.
+Ιncreasing the L2 cache size resulted in a higher CPI. We initially hypothesized that a larger L2 cache might reduce the extremely high baseline L2 miss rate (near 1.0). However, the results indicate that the working set of `speclibm` is likely too large to fit even in a 4MB L2 cache. Consequently, the larger cache did not solve the miss rate problem but instead increased the L2 hit latency, leading to a higher overall CPI.
 
 **L2 Cache Associativity:**
 
@@ -528,7 +528,7 @@ Cache line size significantly influenced performance. As anticipated for a bench
 
 #### **specsjeng**
 
-`specsjeng` is an integer benchmark (a chess engine) that uses complex data structures involving trees and pointer chasing. In the baseline configuration, it exhibited the highest CPI and poor miss rates in both L1D and L2 caches. We explored the same parameters as in `speclibm`, to see how they impact `specsjeng`'s performance.
+`specsjeng` is an integer benchmark (a chess engine) that perhaps uses complex data structures involving trees and pointer chasing. In the baseline configuration, it exhibited the highest CPI and poor miss rates in both L1D and L2 caches. We explored the same parameters as in `speclibm`, to see how they impact `specsjeng`'s performance.
 
 **L1 Data Cache Size:**
 
@@ -546,7 +546,7 @@ The results for L1D associativity mirror those of `speclibm`. Increasing associa
 
 ![L2 Size Impact on CPI (specsjeng)](./assets/specsjeng/cpi_vs_l2_size.png)
 
-In contrast to `speclibm`, increasing the L2 cache size up to 4MB improved the performance of `specsjeng`, resulting in a lower CPI. We observed from the statistics that the overall L2 miss *rate* did not change with the size increase. However, the clear reduction in CPI indicates that the larger cache was nevertheless effective. It likely captured a larger portion of the working set, reducing the *total count* of expensive main memory accesses, even if the ratio of misses to total L2 accesses remained high.
+In contrast to `speclibm`, increasing the L2 cache size up to 4MB improved the performance of `specsjeng`, resulting in a lower CPI. We observed from the `stats.txt` file that the overall L2 miss *rate* did not change with the size increase. However, the clear reduction in CPI indicates that the larger cache was nevertheless effective.
 
 **L2 Cache Associativity:**
 
@@ -561,3 +561,63 @@ Increasing L2 associativity resulted in a very slight increase in CPI. These cha
 This parameter yielded the most significant and surprising results for this benchmark. We initially hypothesized that `specsjeng` would not benefit from larger cache lines due to its reliance on tree data structures, which typically exhibit poor spatial locality. This hypothesis was proven wrong by the data.
 
 Moving from the baseline 64B line size to 128B dramatically decreased the CPI from approximately 7.5 down to near 5. Analysis of the `stats.txt` files confirmed a significant decrease in the L1 D-cache miss rate with larger lines. This suggests that despite the pointer-based nature of the workload, the tree nodes are likely allocated contiguously in memory, allowing the larger lines to successfully prefetch related data.
+
+#### **specbzip2**
+
+`specbzip2` is an integer benchmark that performs compression. In the baseline configuration, it already exhibited relatively good performance with moderate miss rates, indicating decent locality. We explored the impact of cache sizes and line size to see if further improvements could be gained.
+
+**L1 Data Cache Size:**
+
+![L1D Size Impact on CPI (specbzip2)](./assets/specbzip/cpi_vs_l1d_size.png)
+
+As observed in the plot, increasing the L1 data cache size leads to a decrease in CPI, translating to better performance. Analysis of the `stats.txt` files confirms that larger L1 data cache sizes reduced the overall miss rate for this benchmark. This indicates that the larger capacity effectively reduced capacity misses, positively impacting the overall execution efficiency.
+
+**L2 Cache Size:**
+
+![L2 Size Impact on CPI (specbzip2)](./assets/specbzip/cpi_vs_l2_size.png)
+
+Similar to the L1 data cache results, increasing the L2 cache size also improved the benchmark's performance. The `stats.txt` data shows a decrease in the L2 cache miss rate as the size increases, which directly contributes to the observed reduction in CPI and better overall performance.
+
+**Cache Line Size:**
+
+![Cache Line Size Impact on CPI (specbzip2)](./assets/specbzip/cpi_vs_line_size.png)
+
+Moving from the baseline 64-byte line size to 128 bytes did not yield a significant improvement in CPI. However, reducing the line size to 32 bytes notably degraded performance. This is logical for `specbzip2`, as compression algorithms typically iterate over large data arrays, exhibiting good spatial locality. A small 32-byte line size fails to fully exploit this locality, requiring more fetches to retrieve the same amount of sequential data compared to larger line sizes.
+
+#### **specmcf**
+
+`specmcf` generally exhibited good performance in the baseline configuration with low L1D and L2 miss rates. However, it stood out due to a notably higher L1 Instruction cache miss rate compared to other benchmarks. Therefore, our exploration focused specifically on optimizing the L1I cache parameters to address this potential bottleneck.
+
+**L1 Instruction Cache Size:**
+
+![L1I Size Impact on CPI (specmcf)](./assets/specmcf/cpi_vs_l1i_size.png)
+
+As observed in the plot, increasing the L1I cache size from the baseline 32kB to 64kB significantly decreased the CPI. Analysis of the `stats.txt` files confirms that the instruction cache overall miss rate dropped dramatically from 0.023627 to 0.000018. This substantial reduction in misses means the CPU fetched instructions from lower levels of the memory hierarchy far less frequently, directly leading to the observed performance improvement. However, increasing the size further from 64kB to 128kB had no additional impact on performance, indicating that a 64kB size is sufficient to capture the instruction working set of this benchmark.
+
+**L1 Instruction Cache Associativity:**
+
+![L1I Associativity Impact on CPI (specmcf)](./assets/specmcf/cpi_vs_l1i_assoc.png)
+
+This experiment demonstrates that for a relatively small cache size (like the baseline 32kB L1I), higher associativity can be very effective in reducing conflict misses. By increasing the associativity (from the baseline 2-way to 4-way), we observed in the `stats.txt` data that the L1I miss rate dropped almost as effectively as increasing the size, going from 0.023627 down to 0.000019. This reduction in conflict misses led to a clear overall improvement in the benchmark's performance.
+
+#### **spechmmer**
+
+`spechmmer` demonstrated excellent performance in the baseline configuration, with low miss rates across the entire cache hierarchy and a CPI close to ideal. Given this strong starting point, our exploration aimed to determine if increasing cache sizes could provide any further performance benefits.
+
+**L1 Data Cache Size:**
+
+![L1D Size Impact on CPI (spechmmer)](./assets/spechmmer/cpi_vs_l1d_size.png)
+
+Increasing the L1 data cache size from the baseline 64kB to 128kB managed to reduce the CPI, which is confirmed by a corresponding drop in the overall L1D miss rate as seen in the `stats.txt` files. However, the CPI improvement was extremely small, dropping approximately from 1.185 to 1.184. Doubling the L1 data cache size is probably not worth this very small improvement.
+
+**L1 Instruction Cache Size:**
+
+![L1I Size Impact on CPI (spechmmer)](./assets/spechmmer/cpi_vs_l1i_size.png)
+
+Varying the L1 instruction cache size resulted in changes to the CPI that were only visible in the fourth decimal place. Therefore, the impact of L1I cache size on the performance of this benchmark can be considered negligible.
+
+**L2 Cache Size:**
+
+![L2 Size Impact on CPI (spechmmer)](./assets/spechmmer/cpi_vs_l2_size.png)
+
+Similar to the instruction cache, changing the L2 cache size had no impact on the performance of `spechmmer`. The working set of this benchmark is evidently small enough to be served efficiently by the baseline cache configuration.
