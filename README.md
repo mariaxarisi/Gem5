@@ -492,6 +492,8 @@ The values tested were:
 
 In this section, we present the results of our design exploration to optimize system performance. For each benchmark, we have generated graphs illustrating the impact of the tested parameters on the CPI. Below, we provide a analysis of these results for each benchmark, explaining the observed behaviors and commenting on instances where increasing cache resources yielded diminishing returns or even degraded performance.
 
+---
+
 #### **speclibm**
 
 `speclibm` is a floating-point benchmark related to Computational Fluid Dynamics (CFD) simulations, characterized by a high CPI and an extremely high L2 miss rate in the baseline configuration. We explored the impact of L1D size, L1D associativity, L2 size, L2 associativity, and cache line size on its performance.
@@ -525,6 +527,8 @@ Varying the L2 cache associativity had no impact on the benchmark's CPI, confirm
 ![Cache Line Size Impact on CPI (speclibm)](./assets/speclibm/cpi_vs_line_size.png)
 
 Cache line size significantly influenced performance. As anticipated for a benchmark that operates on large arrays and grids, `speclibm` benefits from spatial locality. Increasing the cache line size allows more data to be fetched on each miss, potentially satisfying future references. Analysis of the `stats.txt` files confirms that larger cache line sizes decreased the overall miss rates in both the L1D and L2 caches. The plot shows that a smaller 32B line size degrades performance, while increasing it from the 64B baseline to 128B provides a modest improvement in CPI.
+
+---
 
 #### **specsjeng**
 
@@ -562,6 +566,8 @@ This parameter yielded the most significant and surprising results for this benc
 
 Moving from the baseline 64B line size to 128B dramatically decreased the CPI from approximately 7.5 down to near 5. Analysis of the `stats.txt` files confirmed a significant decrease in the L1 D-cache miss rate with larger lines. This suggests that despite the pointer-based nature of the workload, the tree nodes are likely allocated contiguously in memory, allowing the larger lines to successfully prefetch related data.
 
+---
+
 #### **specbzip2**
 
 `specbzip2` is an integer benchmark that performs compression. In the baseline configuration, it already exhibited relatively good performance with moderate miss rates, indicating decent locality. We explored the impact of cache sizes and line size to see if further improvements could be gained.
@@ -584,6 +590,8 @@ Similar to the L1 data cache results, increasing the L2 cache size also improved
 
 Moving from the baseline 64-byte line size to 128 bytes did not yield a significant improvement in CPI. However, reducing the line size to 32 bytes notably degraded performance. This is logical for `specbzip2`, as compression algorithms typically iterate over large data arrays, exhibiting good spatial locality. A small 32-byte line size fails to fully exploit this locality, requiring more fetches to retrieve the same amount of sequential data compared to larger line sizes.
 
+---
+
 #### **specmcf**
 
 `specmcf` generally exhibited good performance in the baseline configuration with low L1D and L2 miss rates. However, it stood out due to a notably higher L1 Instruction cache miss rate compared to other benchmarks. Therefore, our exploration focused specifically on optimizing the L1I cache parameters to address this potential bottleneck.
@@ -599,6 +607,8 @@ As observed in the plot, increasing the L1I cache size from the baseline 32kB to
 ![L1I Associativity Impact on CPI (specmcf)](./assets/specmcf/cpi_vs_l1i_assoc.png)
 
 This experiment demonstrates that for a relatively small cache size (like the baseline 32kB L1I), higher associativity can be very effective in reducing conflict misses. By increasing the associativity (from the baseline 2-way to 4-way), we observed in the `stats.txt` data that the L1I miss rate dropped almost as effectively as increasing the size, going from 0.023627 down to 0.000019. This reduction in conflict misses led to a clear overall improvement in the benchmark's performance.
+
+---
 
 #### **spechmmer**
 
@@ -643,7 +653,7 @@ Where we assign arbitrary cost units as follows:
 * **$Size_{L2}$**: Size in KB.
 * **$Assoc$**: The associativity way-count (e.g., 2, 4, 8).
 * **Weights ($w$):**
-    * $w_{L1} = 10$: Reflects the cost of the fasterd L1 SRAM.
+    * $w_{L1} = 10$: Reflects the cost of the faster L1 SRAM.
     * $w_{L2} = 1$: Reflects the cost of the slower L2 SRAM.
     * $w_{assoc} = 50$: A high penalty to discourage high associativity unless absolutely necessary (modeling the complexity of comparators and MUXes).
 
@@ -655,7 +665,7 @@ $$Cost =10 \cdot (Size_{L1I} + Siz_{L1D}) + 1 \cdot Size_{L2} + 50 \cdot (Assoc_
 
 We define the optimization metric **Score**, calculated as:
 
-$$Score = \frac{IPC}{Cost} = \frac{1}{CPI \times Cost}$$
+$$Score = \frac{IPC \times 10^6}{Cost} = \frac{10^6}{CPI \times Cost}$$
 
 We now apply this to the benchmarks to find the optimal configuration that balances speed and hardware cost.
 
@@ -666,7 +676,7 @@ We now apply this to the benchmarks to find the optimal configuration that balan
 * **Optimization:**
     * **Optimal Performance Config:** L1=Base, L2=Base, Line=128B.
     * **Cost:** $10(32+64) + 2000 + 50(2+2+8) = 960 + 2000 + 600 = \mathbf{3560}$
-    * **Score:** $1 / (1.990451*3560) = 0.00014112323$
+    * **Score:** $10^6 / (1.990451 \times 3560) = \mathbf{141.12}$
 * **Conclusion:** Since larger caches provided no benefit (or negative benefit), the **Baseline configuration (with 128B lines)** is the winner. There is no need to pay for extra SRAM that yields no CPI drop.
 
 **2. specsjeng**
@@ -674,26 +684,47 @@ We now apply this to the benchmarks to find the optimal configuration that balan
 * **Optimization:**
     * **Option A:** L1=Base, L2=Base, Line=128B.
       * **Cost:** $10(32+64) + 2000 + 50(2+2+8) = 960 + 2000 + 600 = \mathbf{3560}$
-      * **Score:** $1 / (4.974674*3560) = 0.00005646578$
-    * **Option B:** L1=Base, L2_size = 4MB, L2_assoc=Base, Line=128B.
+      * **Score:** $10^6 / (4.974674 \times 3560) = \mathbf{56.46}$
+    * **Option B:** L1=Base, L2_size=4MB, L2_assoc=Base, Line=128B.
       * **Cost:** $10(32+64) + 4000 + 50(2+2+8) = 960 + 4000 + 600 = \mathbf{5560}$
-      * **Score:** $1 / (4.972560*5560) = 0.00003616972$
-* **Conclusion:** The move to 128B lines provides a massive CPI drop (from 7.5 to 5.0) for zero cost. The move to 4MB L2 provides a smaller gain. The **Option A** is the most cost-effective. The Option B is likely too expensive for the marginal gain unless absolute peak performance is required regardless of cost.
+      * **Score:** $10^6 / (4.972560 \times 5560) = \mathbf{36.16}$
+* **Conclusion:** The move to 128B lines provides a massive CPI drop (from 7.5 to 5.0) for zero cost. The move to 4MB L2 provides a smaller gain. **Option A** is the most cost-effective. Option B is likely too expensive for the marginal gain unless absolute peak performance is required regardless of cost.
 
 **3. specmcf**
 * **Performance:** L1I size 64kB and L1I associativity 4 reduced CPI significantly.
 * **Optimization:**
-    * **Optimal Performance Config:** L1I_size=64kB, L1I_assoc=4, L1D=Base, L2=Base, Line=Base.
-    * **Cost:** $10(64+64) + 2000 + 50(4+2+8) = 1280 + 2000 + 700 = \mathbf{3980}$
-    * **Score:** $1 / (*3980) = $
-    * *Analysis:* Increasing associativity is cheaper ($50$ units) than doubling the cache size ($320$ units) and achieved nearly the same miss rate reduction (0.000018 vs 0.000019).
-    * *Verdict:* **Keep L1I at 32KB but increase Associativity to 4.** This is the "smart" architectural choice—fixing conflict misses with logic (associativity) rather than brute force (size).
+    * **Optimal A:** L1=Base, L2=Base, Line=Base.
+      * **Cost:** $10(32+64) + 2000 + 50(2+2+8) = 960 + 2000 + 600 = \mathbf{3560}$
+      * **Score:** $10^6 / (1.277773 \times 3560) = \mathbf{219.83}$
+    * **Optimal B:** L1I_size=64kB, L1I_assoc=4, L1D=Base, L2=Base, Line=Base.
+      * **Cost:** $10(64+64) + 2000 + 50(4+2+8) = 1280 + 2000 + 700 = \mathbf{3980}$
+      * **Score:** $10^6 / (1.136474 \times 3980) = \mathbf{221.08}$
+* **Conclusion:** The **Option B** yields a Score of **221**, which is higher than the baseline score of **Option A**. The extra investment in a larger instruction cache and higher associativity directly addresses the bottleneck (high L1I miss rate) of this benchmark, providing a higher score.
 
-**4. specbzip2 & spechmmer**
-* **Performance finding:** `specbzip2` scaled with size but is already fast. `spechmmer` saw negligible gains from doubling L1.
-* **Verdict:**
-    * **spechmmer:** Keep **Baseline**. The cost of doubling L1 ($+640$ units) for a $0.003$ CPI improvement is a terrible return on investment.
-    * **specbzip2:** Keep **Baseline**. While CPI improved with L2 size, the benchmark is already efficient. Doubling L2 adds 2048 cost units for a modest gain.
+**4. specbzip2**
+* **Performance:** Increasing cache sizes provided modest gains, while changing line size affected performance variably.
+* **Optimization:**
+    * **Option A:** L1I=Base, L1D_size=128kB, L1D_assoc=Base, L2=Base, Line=Base.
+      * **Cost:** $10(32+128) + 2000 + 50(2+2+8) = 1600 + 2000 + 600 = \mathbf{4200}$
+      * **Score:** $10^6 / (1.582307 \times 4200) = \mathbf{150.47}$
+    * **Option B:** L1I=Base, L1D_size=128kB, L1D_assoc=Base, L2_size=4MB, L2_assoc=Base, Line=Base.
+      * **Cost:** $10(32+128) + 4000 + 50(2+2+8) = 1600 + 4000 + 600 = \mathbf{6200}$
+      * **Score:** $10^6 / (1.568246 \times 6200) = \mathbf{102.84}$
+    * **Option C:** L1=Base, L2=Base, Line=128B.
+      * **Cost:** $10(32+64) + 2000 + 50(2+2+8) = 960 + 2000 + 600 = \mathbf{3560}$
+      * **Score:** $10^6 / (1.606549 \times 3560) = \mathbf{174.84}$
+* **Conclusion:** Comparison reveals that **Option C** (Baseline size with 128B lines) offers the highest score (**174.8**). While increasing the L1D size (Option A) reduces CPI slightly, the hardware cost increases by ~18%, lowering the overall efficiency score to 150. Similarly, the massive cost of a 4MB L2 cache (Option B) drastically reduces the score. Thus, the most cost-effective strategy is to utilize the standard cache sizes with a larger cache line.
+
+**5. spechmmer**
+* **Performance:** The benchmark was extremely efficient in the baseline, with negligible gains from larger caches.
+* **Optimization:**
+    * **Option A:** L1I=Base, L1D_size=128kB, L1D_assoc=Base, L2=Base, Line=Base.
+      * **Cost:** $10(32+128) + 2000 + 50(2+2+8) = 1600 + 2000 + 600 = \mathbf{4200}$
+      * **Score:** $10^6 / (1.183551 \times 4200) = \mathbf{201.17}$
+    * **Option B:** L1=Base, L2=Base, Line=Base.
+      * **Cost:** $10(32+64) + 2000 + 50(2+2+8) = 960 + 2000 + 600 = \mathbf{3560}$
+      * **Score:** $10^6 / (1.185243 \times 3560) = \mathbf{236.99}$
+* **Conclusion:** The **Baseline configuration (Option B)** is the clear winner with a score of **236.9**. The performance gain from doubling the L1 Data cache (Option A) is negligible ($1.185 \to 1.183$), but the cost penalty is substantial ($3560 \to 4200$). This confirms that the benchmark is not cache-limited, and using a larger L1 data cache is not cost efficient.
 
 ---
 
